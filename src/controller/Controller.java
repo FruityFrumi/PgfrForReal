@@ -12,7 +12,7 @@ import view.Canvas;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.lang.reflect.Array;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,8 +25,7 @@ import java.util.List;
  */
 public class Controller {
 
-    private Point startPoint;
-    private Point currentPoint;
+
     private Line previewLine;
 
     private final Canvas canvas;
@@ -126,11 +125,7 @@ public class Controller {
     private Point getPoint(MouseEvent e) {
         return new Point(e.getX(), e.getY());
     }
-    private void renderPolygon() {
-        canvas.clear();
-        PolygonOutLineRasterizer.rasterize(polygon);
-        canvas.repaint();
-    }
+
     private void starLine (MouseEvent e) {
         if (polygon.isFinished()) return;
 
@@ -147,13 +142,6 @@ public class Controller {
         previewLine = new Line(start, p, PREVIEW_COLOR);
         render();
     }
-    private void finishPolygon (MouseEvent e) {
-        List<Line> polygonLines = polygon.getLines();
-        if (polygonLines != null && polygonLines.size() >= 3) {
-            polygon.setFinished(true);
-        }
-        previewLine = null;
-        render();
-    }
+
 
 }
