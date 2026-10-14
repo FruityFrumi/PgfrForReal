@@ -23,7 +23,7 @@ public class TrivialLineRasterizer implements LineRasterizer {
     }
 
     private void rasterize(int x1, int y1, int x2, int y2, int color) {
-        // TODO: Dokončit implementaci
+
         if (x2 == x1)
         {
             if (y1 > y2){

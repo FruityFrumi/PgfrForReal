@@ -9,6 +9,7 @@ import model.Point;
 import model.Polygon;
 import view.Canvas;
 
+import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.lang.reflect.Array;
@@ -26,6 +27,7 @@ public class Controller {
 
     private Point startPoint;
     private Point currentPoint;
+    private Line previewLine;
 
     private final Canvas canvas;
     private final LineRasterizer rasterizer;
@@ -41,12 +43,10 @@ public class Controller {
     public Controller(Canvas canvas) {
         this.canvas = canvas;
         this.rasterizer = new TrivialLineRasterizer(canvas.getRaster());
+        this.polygon = new Polygon(lines);
+
         this.PolygonOutLineRasterizer = new PolygonOutlineRasterizer(rasterizer);
 
-        lines.add(new Line(new Point(100,100),new Point(300, 100), Color.WHITE.getRGB()));
-        lines.add(new Line(new Point(300,100),new Point(350, 250), Color.WHITE.getRGB()));
-        lines.add(new Line(new Point(350,250),new Point(200, 350), Color.WHITE.getRGB()));
-        lines.add(new Line(new Point(200,350),new Point(100, 250), Color.WHITE.getRGB()));
     }
 
     /* -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= Main functions -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- */
@@ -59,19 +59,24 @@ public class Controller {
         canvas.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
-                // Todo: mouse cords - when mouse pressed - add new point to polygon
-                // when released preview dissapears
-                startPoint = getPoint(e);
-                currentPoint = startPoint;
+                // Pokud polygon ještě není dokončený, zahájit kreslení úsečky
+                    if (!polygon.isFinished()) {
+                        starLine(e);
+                    }
             }
 
             @Override
             public void mouseReleased(MouseEvent e) {
-                //End
-                lines.add(new Line(startPoint, getPoint(e), LINE_COLOR));
-                currentPoint = null;
-                startPoint = null;
-                render();
+                // 1. Ověřit, zda existuje previewLine.
+                if (previewLine != null) {
+                    Point endPoint = getPoint(e);
+                    Line newLine = new Line(previewLine.getPoint1(), endPoint, LINE_COLOR);
+                    polygon.add(newLine);
+                    previewLine = null;
+
+
+                    render();
+                }
             }
         });
 
@@ -79,25 +84,42 @@ public class Controller {
         canvas.addMouseMotionListener(new MouseMotionAdapter() {
             @Override
             public void mouseDragged(MouseEvent e) {
-                // update preview of line
-                if (startPoint == null) {
-                    return;
+                if (previewLine != null) {
+                    previewLine = new Line(previewLine.getPoint1(), getPoint(e), PREVIEW_COLOR);
+                    render();
                 }
-                currentPoint = getPoint(e);
-                render();
+            }
+        });
+
+        canvas.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                // Při stisknutí klávesy C nebo c vymazat polygon.
+                if (e.getKeyCode() == KeyEvent.VK_C) {
+                    polygon.clear();
+                    previewLine = null;
+                    polygon.setFinished(false);
+                    render();
+                }
             }
         });
         canvas.repaint();
+
+
+
     }
+
+
 
     private void render() {
         canvas.clear();
-        for (Line line : lines) {
-            rasterizer.rasterize(line);
+        // Vykreslení dosud vytvořených úseček polygonu (uzavírací se vykreslí jen u dokončeného)
+        PolygonOutLineRasterizer.rasterize(polygon);
+        // Vykreslení náhledu rozpracované úsečky
+        if (previewLine != null) {
+            rasterizer.rasterize(previewLine);
         }
-        if (startPoint != null) {
-            rasterizer.rasterize(new Line(startPoint, currentPoint, PREVIEW_COLOR));
-        }
+
         canvas.repaint();
     }
 
@@ -110,10 +132,28 @@ public class Controller {
         canvas.repaint();
     }
     private void starLine (MouseEvent e) {
+        if (polygon.isFinished()) return;
 
+        Point p = getPoint(e);
+        Point start;
+
+        List<Line> polygonLines = polygon.getLines();
+        if (polygonLines != null && !polygonLines.isEmpty()) {
+            start = polygonLines.get(polygonLines.size() - 1).getPoint2();
+        } else {
+            start = p;
+        }
+
+        previewLine = new Line(start, p, PREVIEW_COLOR);
+        render();
     }
     private void finishPolygon (MouseEvent e) {
-
+        List<Line> polygonLines = polygon.getLines();
+        if (polygonLines != null && polygonLines.size() >= 3) {
+            polygon.setFinished(true);
+        }
+        previewLine = null;
+        render();
     }
 
 }
