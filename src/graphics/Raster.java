@@ -6,9 +6,10 @@ public interface Raster {
 
     int getWidth();
     int getHeight();
+    Integer getPixel(int x, int y);
 
-    void clear(int color);
+    void clear(Integer value);
     void present(Graphics graphics);
-    void setPixel(int x, int y, int color);
+    void setPixel(int x, int y, Integer value);
 
 }

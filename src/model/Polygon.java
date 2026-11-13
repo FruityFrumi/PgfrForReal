@@ -1,39 +1,30 @@
 package model;
 
-import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Polygon {
+public final class Polygon {
+
     private final List<Line> lines;
-    private boolean isFinished = false;
 
     public Polygon() {
-        this.lines = new ArrayList<>();
-    }
-
-    public Polygon(List<Line> lines) {
-        this.lines = new ArrayList<>(lines);
-    }
-
-    public List<Line> getLines() {
-        return lines;
-    }
-
-    public void add(Line line) {
-        this.lines.add(line);
+        lines = new ArrayList<>();
     }
 
     public void clear() {
-        this.lines.clear();
-        this.isFinished = false;
+        lines.clear();
     }
 
-    public boolean isFinished() {
-        return isFinished;
+    public Point getLastPoint() {
+        return lines.isEmpty() ? null : lines.getLast().getPoint2();
     }
 
-    public void setFinished(boolean finished) {
-        this.isFinished = finished;
+    public List<Line> getLines() {
+        return List.copyOf(lines);
     }
+
+    public void addLine(Line line) {
+        lines.add(line);
+    }
+
 }

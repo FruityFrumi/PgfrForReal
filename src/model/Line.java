@@ -1,6 +1,6 @@
 package model;
 
-public class Line {
+public final class Line {
 
     private final int color;
     private final Point point1;

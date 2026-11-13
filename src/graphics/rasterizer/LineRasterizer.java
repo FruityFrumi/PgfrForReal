@@ -4,6 +4,6 @@ import model.Line;
 
 public interface LineRasterizer {
 
-    void rasterize(Line line);
+    void rasterize(Line line); 
 
 }

@@ -1,147 +1,216 @@
 package controller;
 
-import graphics.rasterizer.LineRasterizer;
+import graphics.filler.ScanlineFiller;
+import graphics.filler.RecursiveSeedFiller;
+import graphics.filler.SeedFiller;
+import graphics.clipping.PolygonClipper;
+import graphics.clipping.SutherlandHodgmanClipper;
 import graphics.rasterizer.PolygonOutlineRasterizer;
 import graphics.rasterizer.PolygonRasterizer;
-import graphics.rasterizer.TrivialLineRasterizer;
+import graphics.rasterizer.XiaolinWuLineRasterizer;
 import model.Line;
 import model.Point;
 import model.Polygon;
 import view.Canvas;
+import view.gui.Toolbar;
 
-import javax.swing.*;
-import java.awt.*;
-import java.awt.event.*;
-
-import java.util.ArrayList;
+import java.awt.Color;
+import java.awt.event.ActionEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseMotionAdapter;
 import java.util.List;
 
-/**
- * Handles user input and controls the application flow related to the {@link Canvas}.
- * The controller coordinates input events, canvas operations, and rendering updates.
- *
- * @author PGRF FIM UHK
- * @version 2026
- */
+import javax.swing.AbstractAction;
+
+import static java.awt.event.KeyEvent.VK_C;
+import static javax.swing.JComponent.WHEN_IN_FOCUSED_WINDOW;
+import static javax.swing.KeyStroke.getKeyStroke;
+
 public class Controller {
 
+    private final Canvas canvas;
+    private final Toolbar toolbar;
 
     private Line previewLine;
-
-    private final Canvas canvas;
-    private final LineRasterizer rasterizer;
-    private final PolygonRasterizer PolygonOutLineRasterizer;
-
     private final Polygon polygon;
-    private final List<Line> lines = new ArrayList<Line>();
+    private final PolygonClipper clipper;
+    private final Polygon clippingTriangle;
+    private final PolygonRasterizer polygonRasterizer;
+
+    private Point seedFillPoint;
+    private boolean seedFillMode;
+    private final SeedFiller seedFiller;
+    private final ScanlineFiller scanlineFiller;
+
     private static final int LINE_COLOR = Color.WHITE.getRGB();
     private static final int PREVIEW_COLOR = Color.RED.getRGB();
+    private static final int ORIGINAL_COLOR = new Color(0x9099A3).getRGB();
+    private static final int CLIPPED_COLOR = new Color(0xA4F2DF).getRGB();
+    private static final int CLIPPING_TRIANGLE_COLOR = new Color(0xE6B85C).getRGB();
+    private static final int FILL_COLOR = new Color(0x58BFA9).getRGB();
 
-    /* -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- Constructors -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */
+    private static final List<Point> CLIPPING_TRIANGLE_VERTICES = List.of(
+        new Point(250, 100),
+        new Point(480, 470),
+        new Point(40, 470)
+    );
 
-    public Controller(Canvas canvas) {
+    public Controller(Canvas canvas, Toolbar toolbar) {
         this.canvas = canvas;
-        this.rasterizer = new TrivialLineRasterizer(canvas.getRaster());
-        this.polygon = new Polygon(lines);
-
-        this.PolygonOutLineRasterizer = new PolygonOutlineRasterizer(rasterizer);
-
+        this.toolbar = toolbar;
+        this.polygon = new Polygon();
+        this.clipper = new SutherlandHodgmanClipper();
+        this.scanlineFiller = new ScanlineFiller(canvas.getRaster());
+        this.seedFiller = new RecursiveSeedFiller(canvas.getRaster());
+        this.polygonRasterizer = new PolygonOutlineRasterizer(new XiaolinWuLineRasterizer(canvas.getRaster()));
+        this.clippingTriangle = createPolygon(CLIPPING_TRIANGLE_VERTICES, CLIPPING_TRIANGLE_COLOR);
     }
 
-    /* -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= Main functions -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- */
-
     public void init() {
-        canvas.clear();
-        // Obsluha vstupu z myši
-        PolygonOutLineRasterizer.rasterize(new Polygon(lines));
+        toolbar.addClearListener(_ -> clearDrawing());
+        toolbar.addSeedFillListener(_ -> toggleSeedFillMode());
+        canvas.getInputMap(WHEN_IN_FOCUSED_WINDOW).put(getKeyStroke(VK_C, 0), "clearCanvas");
+        canvas.getActionMap().put("clearCanvas", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                clearDrawing();
+            }
+        });
 
         canvas.addMouseListener(new MouseAdapter() {
             @Override
-            public void mousePressed(MouseEvent e) {
-                // Pokud polygon ještě není dokončený, zahájit kreslení úsečky
-                    if (!polygon.isFinished()) {
-                        starLine(e);
+            public void mousePressed(MouseEvent event) {
+                if (event.getButton() == MouseEvent.BUTTON1) {
+                    if (seedFillMode) {
+                        fillAt(event);
+                    } else {
+                        startLine(event);
                     }
+                }
             }
 
             @Override
-            public void mouseReleased(MouseEvent e) {
-                // 1. Ověřit, zda existuje previewLine.
-                if (previewLine != null) {
-                    Point endPoint = getPoint(e);
-                    Line newLine = new Line(previewLine.getPoint1(), endPoint, LINE_COLOR);
-                    polygon.add(newLine);
-                    previewLine = null;
-
-
-                    render();
+            public void mouseReleased(MouseEvent event) {
+                if (event.getButton() != MouseEvent.BUTTON1) {
+                    return;
                 }
+
+                if (previewLine == null) {
+                    return;
+                }
+                polygon.addLine(new Line(previewLine.getPoint1(), getPoint(event), LINE_COLOR));
+                previewLine = null;
+                render();
             }
         });
 
-        // Obsluha vstupu z klávesnice
         canvas.addMouseMotionListener(new MouseMotionAdapter() {
             @Override
-            public void mouseDragged(MouseEvent e) {
+            public void mouseDragged(MouseEvent event) {
                 if (previewLine != null) {
-                    previewLine = new Line(previewLine.getPoint1(), getPoint(e), PREVIEW_COLOR);
+                    previewLine = new Line(previewLine.getPoint1(), getPoint(event), PREVIEW_COLOR);
                     render();
                 }
             }
         });
 
-        canvas.addKeyListener(new KeyAdapter() {
-            @Override
-            public void keyPressed(KeyEvent e) {
-                // Při stisknutí klávesy C nebo c vymazat polygon.
-                if (e.getKeyCode() == KeyEvent.VK_C) {
-                    polygon.clear();
-                    previewLine = null;
-                    polygon.setFinished(false);
-                    render();
-                }
-            }
-        });
-        canvas.repaint();
-
-
-
-    }
-
-
-
-    private void render() {
-        canvas.clear();
-        // Vykreslení dosud vytvořených úseček polygonu (uzavírací se vykreslí jen u dokončeného)
-        PolygonOutLineRasterizer.rasterize(polygon);
-        // Vykreslení náhledu rozpracované úsečky
-        if (previewLine != null) {
-            rasterizer.rasterize(previewLine);
-        }
-
-        canvas.repaint();
-    }
-
-    private Point getPoint(MouseEvent e) {
-        return new Point(e.getX(), e.getY());
-    }
-
-    private void starLine (MouseEvent e) {
-        if (polygon.isFinished()) return;
-
-        Point p = getPoint(e);
-        Point start;
-
-        List<Line> polygonLines = polygon.getLines();
-        if (polygonLines != null && !polygonLines.isEmpty()) {
-            start = polygonLines.get(polygonLines.size() - 1).getPoint2();
-        } else {
-            start = p;
-        }
-
-        previewLine = new Line(start, p, PREVIEW_COLOR);
         render();
     }
 
+    private void render() {
+        canvas.clear();
+        Polygon subject = withPreviewLine(polygon, previewLine);
+        Polygon clipped;
+        try {
+            clipped = clipper.clip(subject, clippingTriangle);
+        } catch (UnsupportedOperationException unfinishedClipper) {
+            clipped = null;
+        }
+        if (clipped != null) {
+            scanlineFiller.fill(clipped, FILL_COLOR);
+        }
+        polygonRasterizer.rasterize(withColor(polygon, ORIGINAL_COLOR), previewLine);
+        if (clipped != null) {
+            polygonRasterizer.rasterize(withColor(clipped, CLIPPED_COLOR), null);
+        }
+        polygonRasterizer.rasterize(clippingTriangle, null);
+        if (seedFillPoint != null) {
+            seedFiller.fill(seedFillPoint.getX(), seedFillPoint.getY(), canvas.getBackgroundColor(), FILL_COLOR);
+        }
+        canvas.repaint();
+    }
+
+    private void clearDrawing() {
+        polygon.clear();
+        previewLine = null;
+        seedFillPoint = null;
+        seedFillMode = false;
+        toolbar.setSeedFillMode(false);
+        render();
+    }
+
+    private void toggleSeedFillMode() {
+        seedFillMode = !seedFillMode;
+        toolbar.setSeedFillMode(seedFillMode);
+        render();
+    }
+
+    private void fillAt(MouseEvent event) {
+        Point seed = getPoint(event);
+        Integer seedColor = canvas.getRaster().getPixel(seed.getX(), seed.getY());
+        if (seedFillPoint != null && seedColor != null && seedColor == FILL_COLOR) {
+            seedFillPoint = null;
+            render();
+            return;
+        }
+
+        boolean filled = seedFiller.fill(seed.getX(), seed.getY(), canvas.getBackgroundColor(), FILL_COLOR);
+        if (filled) {
+            seedFillPoint = seed;
+            render();
+        }
+    }
+
+    private Point getPoint(MouseEvent event) {
+        return new Point(event.getX(), event.getY());
+    }
+
+    private void startLine(MouseEvent event) {
+        seedFillPoint = null;
+        Point startPoint = polygon.getLastPoint();
+        if (startPoint == null) {
+            startPoint = getPoint(event);
+        }
+        previewLine = new Line(startPoint, startPoint, PREVIEW_COLOR);
+        render();
+    }
+
+    private Polygon withColor(Polygon source, int color) {
+        Polygon result = new Polygon();
+        for (Line line : source.getLines()) {
+            result.addLine(new Line(line.getPoint1(), line.getPoint2(), color));
+        }
+        return result;
+    }
+
+    private Polygon withPreviewLine(Polygon source, Line preview) {
+        Polygon result = new Polygon();
+        for (Line line : source.getLines()) {
+            result.addLine(line);
+        }
+        if (preview != null) {
+            result.addLine(preview);
+        }
+        return result;
+    }
+
+    private Polygon createPolygon(List<? extends Point> vertices, int color) {
+        Polygon result = new Polygon();
+        for (int i = 0; i + 1 < vertices.size(); i++) {
+            result.addLine(new Line(vertices.get(i), vertices.get(i + 1), color));
+        }
+        return result;
+    }
 
 }

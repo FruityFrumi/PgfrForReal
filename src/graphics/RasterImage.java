@@ -1,6 +1,8 @@
 package graphics;
 
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 
 public class RasterImage implements Raster {
@@ -8,7 +10,7 @@ public class RasterImage implements Raster {
     private final BufferedImage image;
 
     public RasterImage(int width, int height) {
-        this.image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
     }
 
     @Override
@@ -22,22 +24,30 @@ public class RasterImage implements Raster {
     }
 
     @Override
-    public void clear(int color) {
-        Graphics graphics = image.getGraphics();
-        graphics.setColor(new Color(color));
-        graphics.fillRect(0, 0, image.getWidth(), image.getHeight());
+    public void clear(Integer value) {
+        Graphics2D graphics = image.createGraphics();
+        graphics.setColor(new Color(value));
+        graphics.fillRect(0, 0, getWidth(), getHeight());
         graphics.dispose();
     }
 
-    @Override
-    public void present(Graphics graphics) {
-        graphics.drawImage(image, 0, 0, null);
+    public void present(Graphics device) {
+        device.drawImage(image, 0, 0, null);
     }
 
     @Override
-    public void setPixel(int x, int y, int color) {
-        if (x >= 0 && x < image.getWidth() && y >= 0 && y < image.getHeight()) {
-            image.setRGB(x, y, color);
+    public Integer getPixel(int x, int y) {
+        if (x < 0 || x >= getWidth() || y < 0 || y >= getHeight()) {
+            return null;
+        }
+        return image.getRGB(x, y);
+    }
+
+    @Override
+    public void setPixel(int x, int y, Integer value) {
+        if (x >= 0 && x < getWidth() && y >= 0 && y < getHeight()) {
+            image.setRGB(x, y, value);
         }
     }
+
 }
